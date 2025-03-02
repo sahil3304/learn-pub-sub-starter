@@ -8,7 +8,8 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/sahil3304/learn-pub-sub-starter/pubsub"
+	"github.com/sahil3304/learn-pub-sub-starter/internal/pubsub"
+	"github.com/sahil3304/learn-pub-sub-starter/internal/routing"
 )
 
 func connectRabbitMQ(connectionString string) *amqp.Connection {
@@ -32,8 +33,11 @@ func main() {
 	connectionString := "amqp://guest:guest@localhost:5672/"
 	connection := connectRabbitMQ(connectionString)
 	defer connection.Close()
-	connection.Channel()
-	pubsub.PublishJSON()
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Fatal("error opening channel")
+	}
+	pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
 
 	fmt.Println("Connected to RabbitMQ successfully!")
 
