@@ -8,6 +8,7 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/sahil3304/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/sahil3304/learn-pub-sub-starter/internal/pubsub"
 	"github.com/sahil3304/learn-pub-sub-starter/internal/routing"
 )
@@ -29,7 +30,6 @@ func connectRabbitMQ(connectionString string) *amqp.Connection {
 
 func main() {
 	fmt.Println("Starting Peril server...")
-
 	connectionString := "amqp://guest:guest@localhost:5672/"
 	connection := connectRabbitMQ(connectionString)
 	defer connection.Close()
@@ -37,9 +37,32 @@ func main() {
 	if err != nil {
 		log.Fatal("error opening channel")
 	}
-	pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
 
 	fmt.Println("Connected to RabbitMQ successfully!")
+	gamelogic.PrintServerHelp()
+
+	i := 0
+	for i = 0; i < 1; {
+		s := gamelogic.GetInput()
+		if len(s) == 0 {
+			continue
+		} else {
+			l := log.Default()
+			if s[0] == "pause" {
+				l.Print("sending pause")
+				pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
+			} else if s[0] == "resume" {
+				l.Println("sending resume")
+				pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: false})
+			} else if s[0] == "quit" {
+				l.Println("quit")
+				break
+			} else {
+				l.Println("wrong command")
+			}
+		}
+
+	}
 
 	// Graceful shutdown
 	signalChan := make(chan os.Signal, 1)
