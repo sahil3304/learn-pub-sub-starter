@@ -39,6 +39,17 @@ func main() {
 	}
 
 	fmt.Println("Connected to RabbitMQ successfully!")
+	_, queu, err := pubsub.DeclareAndBind(
+		connection,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+"."+"*",
+		pubsub.SimpleQueueDurable,
+	)
+	if err != nil {
+		log.Fatalf("could not subscribe to pause: %v", err)
+	}
+	fmt.Printf("Queue %v declared and bound!\n", queu.Name)
 	gamelogic.PrintServerHelp()
 
 	i := 0
