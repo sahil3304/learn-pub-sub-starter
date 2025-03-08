@@ -10,6 +10,12 @@ import (
 	"github.com/sahil3304/learn-pub-sub-starter/internal/routing"
 )
 
+func handlerPause(gs *gamelogic.GameState) func(t routing.PlayingState) {
+	return func(t routing.PlayingState) {
+		defer fmt.Print("> ")
+		gs.HandlePause(t)
+	}
+}
 func main() {
 	fmt.Println("Starting Peril client...")
 	const rabbitConnString = "amqp://guest:guest@localhost:5672/"
@@ -26,18 +32,11 @@ func main() {
 		log.Fatalf("could not get username: %v", err)
 	}
 
-	_, queue, err := pubsub.DeclareAndBind(
-		conn,
-		routing.ExchangePerilDirect,
-		routing.PauseKey+"."+username,
-		routing.PauseKey,
-		pubsub.SimpleQueueTransient,
-	)
-	if err != nil {
-		log.Fatalf("could not subscribe to pause: %v", err)
-	}
-	fmt.Printf("Queue %v declared and bound!\n", queue.Name)
 	gs := gamelogic.NewGameState(username)
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, routing.PauseKey+"."+username, routing.PauseKey, pubsub.SimpleQueueTransient, handlerPause(gs))
+	if err != nil {
+		fmt.Printf("error in subscrib json in client %v", err)
+	}
 
 	for {
 		words := gamelogic.GetInput()
