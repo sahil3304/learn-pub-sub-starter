@@ -16,6 +16,13 @@ func handlerPause(gs *gamelogic.GameState) func(t routing.PlayingState) {
 		gs.HandlePause(t)
 	}
 }
+func handlerMove(gs *gamelogic.GameState) func(move gamelogic.ArmyMove) {
+	defer fmt.Print(">")
+	return func(move gamelogic.ArmyMove) {
+		gs.HandleMove(move)
+	}
+
+}
 func main() {
 	fmt.Println("Starting Peril client...")
 	const rabbitConnString = "amqp://guest:guest@localhost:5672/"
@@ -33,9 +40,14 @@ func main() {
 	}
 
 	gs := gamelogic.NewGameState(username)
+
 	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, routing.PauseKey+"."+username, routing.PauseKey, pubsub.SimpleQueueTransient, handlerPause(gs))
 	if err != nil {
-		fmt.Printf("error in subscrib json in client %v", err)
+		fmt.Printf("error in subscribe json in client to server %v", err)
+	}
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, "army_moves."+username, "army_moves.*", pubsub.SimpleQueueTransient, handlerMove(gs))
+	if err != nil {
+		fmt.Printf("error in subscribe json in client to client  %v", err)
 	}
 
 	for {
@@ -45,11 +57,13 @@ func main() {
 		}
 		switch words[0] {
 		case "move":
-			_, err := gs.CommandMove(words)
+			move, err := gs.CommandMove(words)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
+			ch, _ := conn.Channel()
+			pubsub.PublishJSON(ch, routing.ExchangePerilTopic, "army_moves."+username, move)
 
 			// TODO: publish the move
 		case "spawn":

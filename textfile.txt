@@ -1,0 +1,1 @@
+make two exchanges before starting it peril_direct ,peril_topic
