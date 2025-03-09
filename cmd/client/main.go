@@ -17,8 +17,9 @@ func handlerPause(gs *gamelogic.GameState) func(t routing.PlayingState) {
 	}
 }
 func handlerMove(gs *gamelogic.GameState) func(move gamelogic.ArmyMove) {
-	defer fmt.Print(">")
+
 	return func(move gamelogic.ArmyMove) {
+		defer fmt.Print(">")
 		gs.HandleMove(move)
 	}
 
@@ -63,7 +64,12 @@ func main() {
 				continue
 			}
 			ch, _ := conn.Channel()
-			pubsub.PublishJSON(ch, routing.ExchangePerilTopic, "army_moves."+username, move)
+			err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, "army_moves."+username, move)
+			if err != nil {
+				fmt.Printf("Failed to publish move: %v\n", err)
+			} else {
+				fmt.Println("Move published successfully!")
+			}
 
 			// TODO: publish the move
 		case "spawn":
