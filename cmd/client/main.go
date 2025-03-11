@@ -10,17 +10,25 @@ import (
 	"github.com/sahil3304/learn-pub-sub-starter/internal/routing"
 )
 
-func handlerPause(gs *gamelogic.GameState) func(t routing.PlayingState) {
-	return func(t routing.PlayingState) {
+func handlerPause(gs *gamelogic.GameState) func(t routing.PlayingState) pubsub.AckType {
+	return func(t routing.PlayingState) pubsub.AckType {
 		defer fmt.Print("> ")
 		gs.HandlePause(t)
+		return pubsub.Ack
 	}
 }
-func handlerMove(gs *gamelogic.GameState) func(move gamelogic.ArmyMove) {
-
-	return func(move gamelogic.ArmyMove) {
+func handlerMove(gs *gamelogic.GameState) func(move gamelogic.ArmyMove) pubsub.AckType {
+	return func(move gamelogic.ArmyMove) pubsub.AckType {
 		defer fmt.Print(">")
-		gs.HandleMove(move)
+		outcome := gs.HandleMove(move)
+		switch outcome {
+		case gamelogic.MoveOutcomeSamePlayer:
+			return pubsub.NackDiscard
+		case gamelogic.MoveOutComeSafe, gamelogic.MoveOutcomeMakeWar:
+			return pubsub.Ack
+		default:
+			return pubsub.NackDiscard
+		}
 	}
 
 }
