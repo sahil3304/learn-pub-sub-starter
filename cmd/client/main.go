@@ -31,11 +31,15 @@ func handlerMove(gs *gamelogic.GameState, conn *amqp.Connection) func(move gamel
 		case gamelogic.MoveOutcomeMakeWar:
 			fmt.Println("war between " + move.Player.Username + "and" + gs.Player.Username)
 			c, _ := conn.Channel()
-			pubsub.PublishJSON(c, "peril_topic", routing.WarRecognitionsPrefix+gs.GetUsername(), gamelogic.RecognitionOfWar{
+			err := pubsub.PublishJSON(c, "peril_topic", routing.WarRecognitionsPrefix+gs.GetUsername(), gamelogic.RecognitionOfWar{
 				Attacker: move.Player,
 				Defender: gs.Player,
 			})
-			return pubsub.NackRequeue
+			if err != nil {
+				fmt.Printf("failed to publish move %v", err)
+				return pubsub.NackRequeue
+			}
+			return pubsub.Ack
 		default:
 			return pubsub.NackDiscard
 		}
