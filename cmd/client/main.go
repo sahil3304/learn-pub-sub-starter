@@ -29,9 +29,9 @@ func handlerMove(gs *gamelogic.GameState, conn *amqp.Connection) func(move gamel
 			fmt.Println("not affected no units in area")
 			return pubsub.Ack
 		case gamelogic.MoveOutcomeMakeWar:
-			fmt.Println("war between " + move.Player.Username + "and" + gs.Player.Username)
+			fmt.Println("war between " + move.Player.Username + " and " + gs.Player.Username)
 			c, _ := conn.Channel()
-			err := pubsub.PublishJSON(c, "peril_topic", routing.WarRecognitionsPrefix+gs.GetUsername(), gamelogic.RecognitionOfWar{
+			err := pubsub.PublishJSON(c, "peril_topic", routing.WarRecognitionsPrefix+"."+gs.GetUsername(), gamelogic.RecognitionOfWar{
 				Attacker: move.Player,
 				Defender: gs.Player,
 			})
