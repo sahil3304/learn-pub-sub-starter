@@ -17,20 +17,50 @@ func handlerPause(gs *gamelogic.GameState) func(t routing.PlayingState) pubsub.A
 		return pubsub.Ack
 	}
 }
-func handlerMove(gs *gamelogic.GameState) func(move gamelogic.ArmyMove) pubsub.AckType {
+func handlerMove(gs *gamelogic.GameState, conn *amqp.Connection) func(move gamelogic.ArmyMove) pubsub.AckType {
 	return func(move gamelogic.ArmyMove) pubsub.AckType {
 		defer fmt.Print(">")
 		outcome := gs.HandleMove(move)
 		switch outcome {
 		case gamelogic.MoveOutcomeSamePlayer:
+			fmt.Println("same player no need to war")
 			return pubsub.NackDiscard
-		case gamelogic.MoveOutComeSafe, gamelogic.MoveOutcomeMakeWar:
+		case gamelogic.MoveOutComeSafe:
+			fmt.Println("not affected no units in area")
 			return pubsub.Ack
+		case gamelogic.MoveOutcomeMakeWar:
+			fmt.Println("war between " + move.Player.Username + "and" + gs.Player.Username)
+			c, _ := conn.Channel()
+			pubsub.PublishJSON(c, "peril_topic", routing.WarRecognitionsPrefix+gs.GetUsername(), gamelogic.RecognitionOfWar{
+				Attacker: move.Player,
+				Defender: gs.Player,
+			})
+			return pubsub.NackRequeue
 		default:
 			return pubsub.NackDiscard
 		}
 	}
 
+}
+func handlerWar(gs *gamelogic.GameState) func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
+	return func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
+		defer fmt.Print(">")
+		outcome, w, l := gs.HandleWar(rw)
+		log.Printf("War outcome: %v, Winner: %s, Loser: %s", outcome, w, l)
+		switch outcome {
+		case gamelogic.WarOutcomeNotInvolved:
+			fmt.Println("Not involved in this war, requeuing message...")
+			return pubsub.NackRequeue
+		case gamelogic.WarOutcomeNoUnits:
+			fmt.Println("No units in overlapping location, discarding message...")
+			return pubsub.NackDiscard
+		case gamelogic.WarOutcomeOpponentWon, gamelogic.WarOutcomeDraw, gamelogic.WarOutcomeYouWon:
+			fmt.Printf("War outcome resolved: %v (Winner: %s, Loser: %s)\n", outcome, w, l)
+			return pubsub.Ack
+		default:
+			return pubsub.NackDiscard
+		}
+	}
 }
 func main() {
 	fmt.Println("Starting Peril client...")
@@ -54,7 +84,11 @@ func main() {
 	if err != nil {
 		fmt.Printf("error in subscribe json in client to server %v", err)
 	}
-	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, "army_moves."+username, "army_moves.*", pubsub.SimpleQueueTransient, handlerMove(gs))
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, "army_moves."+username, "army_moves.*", pubsub.SimpleQueueTransient, handlerMove(gs, conn))
+	if err != nil {
+		fmt.Printf("error in subscribe json in client to client  %v", err)
+	}
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, "war", "war.*", pubsub.SimpleQueueDurable, handlerWar(gs))
 	if err != nil {
 		fmt.Printf("error in subscribe json in client to client  %v", err)
 	}
