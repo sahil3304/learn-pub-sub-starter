@@ -46,22 +46,53 @@ func handlerMove(gs *gamelogic.GameState, conn *amqp.Connection) func(move gamel
 	}
 
 }
-func handlerWar(gs *gamelogic.GameState) func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
+func handlerWar(gs *gamelogic.GameState, c *amqp.Connection) func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
-		defer fmt.Print(">")
-		outcome, w, l := gs.HandleWar(rw)
-		log.Printf("War outcome: %v, Winner: %s, Loser: %s", outcome, w, l)
+		defer fmt.Print("> ")
+
+		outcome, winner, loser := gs.HandleWar(rw)
+		log.Printf("War outcome: %v, Winner: %s, Loser: %s", outcome, winner, loser)
+
+		var message string
 		switch outcome {
 		case gamelogic.WarOutcomeNotInvolved:
-			fmt.Println("Not involved in this war, requeuing message...")
+			log.Println("Not involved in this war, requeuing message...")
 			return pubsub.NackRequeue
 		case gamelogic.WarOutcomeNoUnits:
-			fmt.Println("No units in overlapping location, discarding message...")
+			log.Println("No units in overlapping location, discarding message...")
 			return pubsub.NackDiscard
 		case gamelogic.WarOutcomeOpponentWon, gamelogic.WarOutcomeDraw, gamelogic.WarOutcomeYouWon:
-			fmt.Printf("War outcome resolved: %v (Winner: %s, Loser: %s)\n", outcome, w, l)
+			if outcome == gamelogic.WarOutcomeDraw {
+				message = fmt.Sprintf("A war between %s and %s resulted in a draw", winner, loser)
+			} else {
+				message = fmt.Sprintf("%s won a war against %s", winner, loser)
+			}
+
+			log.Println("Publishing war event log:", message)
+
+			cc, err := c.Channel()
+			if err != nil {
+				log.Println("Failed to open a channel for publishing logs:", err)
+				return pubsub.NackRequeue
+			}
+			defer cc.Close()
+
+			gameLog := gamelogic.GameLog{
+				Winner: winner,
+				Loser:  loser,
+				Detail: message,
+			}
+
+			err = pubsub.PublishGob(cc, routing.ExchangePerilTopic, routing.GameLogSlug+"."+rw.Attacker.Username, gameLog)
+			if err != nil {
+				log.Println("Failed to publish game log:", err)
+				return pubsub.NackRequeue
+			}
+
+			log.Println("Game log successfully published.")
 			return pubsub.Ack
 		default:
+			log.Println("Unexpected outcome, discarding message...")
 			return pubsub.NackDiscard
 		}
 	}
@@ -92,7 +123,7 @@ func main() {
 	if err != nil {
 		fmt.Printf("error in subscribe json in client to client  %v", err)
 	}
-	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, "war", "war.*", pubsub.SimpleQueueDurable, handlerWar(gs))
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, "war", "war.*", pubsub.SimpleQueueDurable, handlerWar(gs, conn))
 	if err != nil {
 		fmt.Printf("error in subscribe json in client to client  %v", err)
 	}
