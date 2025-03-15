@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+type GameLog struct {
+	Winner string
+	Loser  string
+	Detail string
+}
+
 func PrintClientHelp() {
 	fmt.Println("Possible commands:")
 	fmt.Println("* move <location> <unitID> <unitID> <unitID>...")
