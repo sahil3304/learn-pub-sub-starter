@@ -44,11 +44,11 @@ func main() {
 	connection := connectRabbitMQ(connectionString)
 	defer connection.Close()
 	channel, err := connection.Channel()
-	defer channel.Close()
+
 	if err != nil {
 		log.Fatal("error opening channel")
 	}
-
+	defer channel.Close()
 	fmt.Println("Connected to RabbitMQ successfully!")
 	_, queu, err := pubsub.DeclareAndBind(
 		connection,
