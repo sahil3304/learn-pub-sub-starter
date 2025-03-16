@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/sahil3304/learn-pub-sub-starter/internal/gamelogic"
@@ -77,10 +78,10 @@ func handlerWar(gs *gamelogic.GameState, c *amqp.Connection) func(rw gamelogic.R
 			}
 			defer cc.Close()
 
-			gameLog := gamelogic.GameLog{
-				Winner: winner,
-				Loser:  loser,
-				Detail: message,
+			gameLog := routing.GameLog{
+				CurrentTime: time.Now(),
+				Username:    winner,
+				Message:     message,
 			}
 
 			err = pubsub.PublishGob(cc, routing.ExchangePerilTopic, routing.GameLogSlug+"."+rw.Attacker.Username, gameLog)

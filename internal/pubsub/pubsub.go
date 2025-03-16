@@ -102,6 +102,57 @@ func DeclareAndBind(
 
 	return ch, queue, nil
 }
+func SubscribeGOB[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	simpleQueueType SimpleQueueType,
+	handler func(T) AckType,
+) error {
+	ch, _, err := DeclareAndBind(conn, exchange, queueName, key, simpleQueueType)
+	if err != nil {
+		fmt.Printf("Error while subscribing: %v\n", err)
+		return err
+	}
+
+	conchannel, err := ch.Consume(queueName, "", false, false, false, false, nil)
+	if err != nil {
+		fmt.Printf("Error while consuming: %v\n", err)
+		return err
+	}
+
+	go func() {
+		for i := range conchannel {
+			var msg T
+			var b bytes.Buffer
+			b.Write(i.Body)
+
+			g := gob.NewDecoder(&b)
+			if decodeErr := g.Decode(&msg); decodeErr != nil {
+				fmt.Printf("Error in message consumption: %v\n", decodeErr)
+				i.Nack(false, false)
+				continue
+			}
+
+			ack := handler(msg)
+			switch ack {
+			case Ack:
+				i.Ack(false)
+				fmt.Println("Message acknowledged")
+			case NackRequeue:
+				i.Nack(false, true)
+				fmt.Println("Message requeued")
+			case NackDiscard:
+				i.Nack(false, false)
+				fmt.Println("Message discarded")
+			}
+		}
+	}()
+
+	return nil
+}
+
 func SubscribeJSON[T any](
 	conn *amqp.Connection,
 	exchange,
