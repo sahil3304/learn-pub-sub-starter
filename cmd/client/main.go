@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -128,6 +129,8 @@ func main() {
 	if err != nil {
 		fmt.Printf("error in subscribe json in client to client  %v", err)
 	}
+	ch, _ := conn.Channel()
+	defer ch.Close()
 
 	for {
 		words := gamelogic.GetInput()
@@ -141,7 +144,7 @@ func main() {
 				fmt.Println(err)
 				continue
 			}
-			ch, _ := conn.Channel()
+
 			err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, "army_moves."+username, move)
 			if err != nil {
 				fmt.Printf("Failed to publish move: %v\n", err)
@@ -161,8 +164,34 @@ func main() {
 		case "help":
 			gamelogic.PrintClientHelp()
 		case "spam":
-			// TODO: publish n malicious logs
-			fmt.Println("Spamming not allowed yet!")
+
+			if len(words) == 2 {
+				if len(words) < 2 {
+					fmt.Println("Usage: spam <number_of_logs>")
+					return
+				}
+
+				n, err := strconv.Atoi(words[1])
+				if err != nil || n <= 0 {
+					fmt.Println("Invalid number of logs")
+					return
+				}
+
+				logMsg := gamelogic.GetMaliciousLog()
+
+				for i := 0; i < n; i++ {
+					err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, "game_logs."+username, routing.GameLog{
+						Message:     logMsg,
+						CurrentTime: time.Now(),
+					})
+					if err != nil {
+						fmt.Printf("Failed to send malicious log %v\n", err)
+					} else {
+						fmt.Println("Log sent")
+					}
+				}
+			}
+
 		case "quit":
 			gamelogic.PrintQuit()
 			return
