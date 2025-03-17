@@ -180,7 +180,7 @@ func main() {
 				logMsg := gamelogic.GetMaliciousLog()
 
 				for i := 0; i < n; i++ {
-					err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, "game_logs."+username, routing.GameLog{
+					err = pubsub.PublishGob(ch, routing.ExchangePerilTopic, "game_logs."+username, routing.GameLog{
 						Message:     logMsg,
 						CurrentTime: time.Now(),
 					})
