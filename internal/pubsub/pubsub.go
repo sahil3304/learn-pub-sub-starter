@@ -115,7 +115,11 @@ func SubscribeGOB[T any](
 		fmt.Printf("Error while subscribing: %v\n", err)
 		return err
 	}
-
+	err = ch.Qos(10, 10, false)
+	if err != nil {
+		fmt.Printf("Error while consuming: %v\n", err)
+		return err
+	}
 	conchannel, err := ch.Consume(queueName, "", false, false, false, false, nil)
 	if err != nil {
 		fmt.Printf("Error while consuming: %v\n", err)
